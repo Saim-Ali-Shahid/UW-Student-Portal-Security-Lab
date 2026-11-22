@@ -1,5 +1,6 @@
 // UW Student Portal - training app. All data is fake.
-// Task 4 fixes applied: secrets removed, hashed passwords, safe DOM output, own-result check
+// Task 4 + A2 fixes: hashed passwords, safe DOM output, own-result check,
+// allow-listed redirect, login throttling
 
 const USERS = [
   { id: 1001, name: "Ayesha Khan", email: "ayesha@uw.test", role: "student",
@@ -35,18 +36,44 @@ function getSession() {
   return USERS.find((x) => String(x.id) === id) || null;
 }
 
+// A2(a): only these same-site relative pages may be used as a ?next= target
+const ALLOWED_NEXT = ["index.html"];
+function safeNext(value) {
+  return ALLOWED_NEXT.includes(value) ? value : null;
+}
+
+// A2(c): client-side login throttling (kept in memory only; NOT a real rate limit)
+const MAX_ATTEMPTS = 3;
+const BLOCK_MS = 30000;
+let failedAttempts = 0;
+let blockedUntil = 0;
+
 $("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+  const now = Date.now();
+  if (now < blockedUntil) {
+    const secs = Math.ceil((blockedUntil - now) / 1000);
+    $("loginMsg").textContent = "Too many failed attempts. Try again in " + secs + " seconds.";
+    return;
+  }
   const email = $("email").value;
   const pw = $("password").value;
   const u = USERS.find((x) => x.email === email);
   if (!u || (await sha256("uw" + u.id + pw)) !== u.passwordHash) {
+    failedAttempts++;
+    if (failedAttempts >= MAX_ATTEMPTS) {
+      failedAttempts = 0;
+      blockedUntil = Date.now() + BLOCK_MS;
+      $("loginMsg").textContent = "Too many failed attempts. Sign-in is blocked for 30 seconds.";
+      return;
+    }
     $("loginMsg").textContent = "Login failed for " + email;
     return;
   }
+  failedAttempts = 0;
   sessionStorage.setItem("uid", String(u.id));
-  const next = params.get("next");
-  if (next) { location.href = next; return; }
+  const next = safeNext(params.get("next"));
+  if (next) { location.assign(next); return; }
   render();
 });
 
