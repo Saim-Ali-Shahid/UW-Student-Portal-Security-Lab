@@ -1,0 +1,6 @@
+rules:
+  - id: no-eval
+    languages: [javascript]
+    severity: ERROR
+    message: eval() runs text as code and can lead to code injection (OWASP A03). Use JSON.parse() or normal logic instead.
+    pattern: eval(...)
